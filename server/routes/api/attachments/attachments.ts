@@ -26,6 +26,7 @@ import BaseStorage from "@server/storage/files/BaseStorage";
 import type { APIContext } from "@server/types";
 import { RateLimiterStrategy } from "@server/utils/RateLimiter";
 import { assertIn } from "@server/validation";
+import env from "@server/env";
 import * as T from "./schema";
 
 const router = new Router();
@@ -137,18 +138,31 @@ router.post(
       teamId: user.teamId,
       userId: user.id,
     });
+    
+    let uploadUrl;
+    let method;
+    let presignedPost = {
+      fields: {},
+    };
+    if (env.AWS_S3_R2) {
+      uploadUrl = await FileStorage.getPresignedPut(key);
+      method = "PUT";
+    } else {
+      uploadUrl = FileStorage.getUploadUrl();
+      method = "POST";
 
-    const presignedPost = await FileStorage.getPresignedPost(
-      ctx,
-      key,
-      acl,
-      maxUploadSize,
-      contentType
-    );
-
+      presignedPost = await FileStorage.getPresignedPost(
+        key,
+        acl,
+        maxUploadSize,
+        contentType
+      );
+    }
+    
     ctx.body = {
       data: {
-        uploadUrl: FileStorage.getUploadUrl(),
+        uploadUrl,
+        method,
         form: {
           "Cache-Control": "max-age=31557600",
           "Content-Type": contentType,
